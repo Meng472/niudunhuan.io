@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI智能体增强的牛顿环曲率测量虚拟仿真实验平台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --primary-color: #2979ff;
+            --primary-dark: #1565c0;
+            --accent-color: #ff5722;
+            --text-dark: #263238;
+            --text-light: #78909c;
+            --background: #e9edf6;
+        }
+        
+        /* 彩带Canvas样式 */
+        #confettiCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', 'PingFang SC', 'SimHei', sans-serif;
+            line-height: 1.6;
+            color: var(--text-dark);
+            background-color: var(--background);
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+        
+        /* 渐变背景 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(120deg, #e6eeff 0%, #d9e3f7 50%, #ccdcff 100%);
+            z-index: -2;
+        }
+        
+        /* 添加深色背景层 */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 30% 20%, rgba(78, 106, 240, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 70% 60%, rgba(205, 61, 115, 0.05) 0%, transparent 40%);
+            z-index: -1;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* 顶部导航 */
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            position: relative;
+            padding-left: 45px;
+        }
+        
+        .logo::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid rgba(73, 125, 255, 0.6);
+            box-shadow: 0 0 0 6px rgba(73, 125, 255, 0.1);
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 30%, rgba(73, 125, 255, 0.2) 70%);
+        }
+        
+        .logo::after {
+            content: '';
+            position: absolute;
+            left: 9px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: conic-gradient(from 0deg, #4e6af0, #cd3d73, #e64a47, #4e6af0);
+            opacity: 0.8;
+            animation: rotate 6s linear infinite;
+        }
+        
+        @keyframes rotate {
+            0% {
+                transform: translateY(-50%) rotate(0deg);
+            }
+            100% {
+                transform: translateY(-50%) rotate(360deg);
+            }
+        }
+        
+        .logo span {
+            margin-left: 8px;
+        }
+        
+        .top-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .api-link {
+            text-decoration: none;
+            color: var(--text-dark);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            padding: 6px 16px;
+            border-radius: 24px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        
+        .api-link:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .api-link svg {
+            margin-left: 8px;
+        }
+        
+        .lang-switch {
+            color: var(--text-dark);
+            text-decoration: none;
+            font-size: 0.9rem;
+            position: relative;
+            padding: 6px 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .lang-switch::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 0;
+            height: 2px;
+            background: var(--primary-color);
+            transition: width 0.3s ease;
+        }
+        
+        .lang-switch:hover::after {
+            width: 100%;
+        }
+        
+        /* 主内容区 */
+        .hero {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            background-color: var(--background);
+            padding-top: 0;
+        }
+        
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 35%, rgba(78, 106, 240, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 75% 60%, rgba(205, 61, 115, 0.08) 0%, transparent 50%),
+                linear-gradient(135deg, rgba(26, 42, 108, 0.05), rgba(178, 31, 31, 0.05), rgba(253, 187, 45, 0.05));
+            z-index: 0;
+        }
+        
+        /* 背景装饰元素 */
+        .bg-decoration {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 0;
+            opacity: 0.6;
+        }
+        
+        .particle {
+            position: absolute;
+            background-color: rgba(73, 125, 255, 0.15);
+            border-radius: 50%;
+            animation: float-particle 15s ease-in-out infinite alternate;
+            box-shadow: 0 0 15px rgba(73, 125, 255, 0.1);
+        }
+        
+        .particle:nth-child(1) {
+            width: 80px;
+            height: 80px;
+            top: 15%;
+            left: 10%;
+            animation-duration: 18s;
+        }
+        
+        .particle:nth-child(2) {
+            width: 60px;
+            height: 60px;
+            top: 25%;
+            left: 85%;
+            animation-duration: 22s;
+            animation-delay: 2s;
+        }
+        
+        .particle:nth-child(3) {
+            width: 40px;
+            height: 40px;
+            bottom: 20%;
+            left: 20%;
+            animation-duration: 15s;
+            animation-delay: 1s;
+        }
+        
+        .particle:nth-child(4) {
+            width: 70px;
+            height: 70px;
+            bottom: 30%;
+            right: 15%;
+            animation-duration: 20s;
+            animation-delay: 3s;
+        }
+        
+        @keyframes float-particle {
+            0% {
+                transform: translateY(0) translateX(0);
+                opacity: 0.3;
+            }
+            50% {
+                transform: translateY(30px) translateX(20px);
+                opacity: 0.6;
+            }
+            100% {
+                transform: translateY(-20px) translateX(-15px);
+                opacity: 0.3;
+            }
+        }
+        
+        .physics-symbol {
+            position: absolute;
+            color: rgba(73, 125, 255, 0.12);
+            font-size: 2.5rem;
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+            font-weight: bold;
+            animation: fade-in-out 8s ease-in-out infinite alternate;
+            text-shadow: 0 0 10px rgba(73, 125, 255, 0.1);
+        }
+        
+        .physics-symbol:nth-child(1) {
+            top: 18%;
+            left: 25%;
+            font-size: 4rem;
+            transform: rotate(-15deg);
+        }
+        
+        .physics-symbol:nth-child(2) {
+            top: 65%;
+            left: 75%;
+            font-size: 3.5rem;
+            transform: rotate(10deg);
+        }
+        
+        .physics-symbol:nth-child(3) {
+            top: 30%;
+            right: 20%;
+            font-size: 3rem;
+            transform: rotate(-5deg);
+        }
+        
+        .physics-symbol:nth-child(4) {
+            bottom: 25%;
+            left: 30%;
+            font-size: 2.8rem;
+            transform: rotate(8deg);
+        }
+        
+        @keyframes fade-in-out {
+            0% {
+                opacity: 0.05;
+                transform: rotate(-15deg) scale(0.9);
+            }
+            50% {
+                opacity: 0.08;
+                transform: rotate(-10deg) scale(1);
+            }
+            100% {
+                opacity: 0.05;
+                transform: rotate(-15deg) scale(0.9);
+            }
+        }
+        
+        .newton-ring-small {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid rgba(73, 125, 255, 0.15);
+            animation: pulse-small 10s infinite alternate;
+            box-shadow: 0 0 20px rgba(73, 125, 255, 0.1);
+        }
+        
+        .newton-ring-small:nth-child(1) {
+            width: 120px;
+            height: 120px;
+            top: 10%;
+            left: 15%;
+        }
+        
+        .newton-ring-small:nth-child(2) {
+            width: 150px;
+            height: 150px;
+            bottom: 15%;
+            left: 8%;
+            animation-delay: 2s;
+        }
+        
+        .newton-ring-small:nth-child(3) {
+            width: 100px;
+            height: 100px;
+            top: 15%;
+            right: 12%;
+            animation-delay: 1s;
+        }
+        
+        .newton-ring-small:nth-child(4) {
+            width: 200px;
+            height: 200px;
+            bottom: 20%;
+            right: 15%;
+            animation-delay: 3s;
+        }
+        
+        @keyframes pulse-small {
+            0% {
+                transform: scale(1);
+                opacity: 0.05;
+            }
+            50% {
+                transform: scale(1.1);
+                opacity: 0.1;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 0.05;
+            }
+        }
+        
+        .grid-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(to right, rgba(73, 125, 255, 0.06) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(73, 125, 255, 0.06) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -1;
+        }
+        
+        .grid-lines::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(to right, rgba(73, 125, 255, 0.08) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(73, 125, 255, 0.08) 1px, transparent 1px);
+            background-size: 200px 200px;
+            z-index: -1;
+        }
+        
+        /* 背景牛顿环 */
+        .newton-ring-bg {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 0;
+            opacity: 0.8;
+            overflow: hidden;
+        }
+        
+        /* 添加牛顿环图形 */
+        .newton-rings {
+            position: absolute;
+            width: 800px;
+            height: 800px;
+            top: 50%;
+            right: -100px;
+            transform: translateY(-50%);
+            opacity: 0.1;
+            z-index: 0;
+        }
+        
+        .ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 1px solid rgba(73, 125, 255, 0.5);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .ring:nth-child(1) {
+            width: 700px;
+            height: 700px;
+            border-width: 2px;
+            animation: pulse 8s infinite alternate;
+        }
+        
+        .ring:nth-child(2) {
+            width: 550px;
+            height: 550px;
+            border-width: 3px;
+            animation: pulse 7s 0.5s infinite alternate;
+        }
+        
+        .ring:nth-child(3) {
+            width: 400px;
+            height: 400px;
+            border-width: 2px;
+            animation: pulse 6s 1s infinite alternate;
+        }
+        
+        .ring:nth-child(4) {
+            width: 250px;
+            height: 250px;
+            border-width: 2px;
+            animation: pulse 5s 1.5s infinite alternate;
+        }
+        
+        .ring:nth-child(5) {
+            width: 150px;
+            height: 150px;
+            border-width: 1px;
+            animation: pulse 4s 2s infinite alternate;
+        }
+        
+        @keyframes pulse {
+            0% {
+                opacity: 0.3;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            100% {
+                opacity: 0.7;
+                transform: translate(-50%, -50%) scale(1.05);
+            }
+        }
+        
+        .wave {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 300px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="%232979ff" fill-opacity="0.05" d="M0,96L48,106.7C96,117,192,139,288,144C384,149,480,139,576,122.7C672,107,768,85,864,90.7C960,96,1056,128,1152,144C1248,160,1344,160,1392,160L1440,160L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') repeat-x;
+            background-size: 1440px 320px;
+            animation: wave-animation 30s linear infinite;
+        }
+        
+        @keyframes wave-animation {
+            0% {
+                transform: translateX(0);
+            }
+            100% {
+                transform: translateX(-1440px);
+            }
+        }
+        
+        .wave:nth-child(2) {
+            bottom: -10px;
+            opacity: 0.5;
+            animation: wave-animation 20s linear infinite reverse;
+        }
+        
+        .hero-content {
+            max-width: 1200px;
+            z-index: 1;
+            position: relative;
+            text-align: center;
+            padding: 0 20px;
+            transform: translateY(-20px);
+        }
+        
+        .main-title {
+            font-size: 4rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            line-height: 1.2;
+            background: linear-gradient(45deg, #4e6af0, #cd3d73, #e64a47);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: -0.02em;
+            animation: fadeUp 1s ease-out;
+            white-space: nowrap;
+        }
+        
+        .subtitle {
+            font-size: 2.2rem;
+            font-weight: 600;
+            margin-bottom: 2rem;
+            color: var(--text-dark);
+            animation: fadeUp 1s 0.2s ease-out both;
+        }
+        
+        .description {
+            font-size: 1.25rem;
+            color: var(--text-light);
+            margin-bottom: 1.5rem;
+            line-height: 1.8;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            animation: fadeUp 1s 0.4s ease-out both;
+        }
+        
+        .description:last-of-type {
+            margin-bottom: 3rem;
+        }
+        
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* 卡片区域 */
+        .cards-container {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+            z-index: 1;
+            position: relative;
+            animation: fadeUp 1s 0.6s ease-out both;
+        }
+        
+        .card {
+            background-color: white;
+            border-radius: 20px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+            padding: 25px;
+            width: 380px;
+            text-align: left;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            text-decoration: none;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+        }
+        
+        .card-content {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .card-image {
+            flex-shrink: 0;
+            width: 80px;
+            height: 80px;
+            background: #f7f0f7;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover .card-image {
+            transform: scale(1.05);
+        }
+        
+        .card-text {
+            flex-grow: 1;
+        }
+        
+        .card-title {
+            font-size: 1.6rem;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            position: relative;
+            display: block;
+        }
+        
+        .card-description {
+            color: var(--text-light);
+            margin-bottom: 0;
+            line-height: 1.5;
+            font-size: 0.95rem;
+        }
+        
+        .card-arrow {
+            display: inline-block;
+            position: relative;
+            width: 40px;
+            height: 16px;
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            transform: translateX(-10px);
+        }
+        
+        .card-arrow::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: 0;
+            width: 30px;
+            height: 2px;
+            background-color: var(--primary-color);
+            transform: translateY(-50%);
+        }
+        
+        .card-arrow::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: 0;
+            width: 10px;
+            height: 10px;
+            border-top: 2px solid var(--primary-color);
+            border-right: 2px solid var(--primary-color);
+            transform: translateY(-50%) rotate(45deg);
+        }
+        
+        .card:hover .card-arrow {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .card-icon {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 5rem;
+            color: rgba(73, 125, 255, 0.03);
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover .card-icon {
+            transform: rotate(15deg) scale(1.2);
+            color: rgba(73, 125, 255, 0.05);
+        }
+        
+        /* 媒体查询 */
+        @media (max-width: 992px) {
+            .main-title {
+                font-size: 3.2rem;
+            }
+            
+            .subtitle {
+                font-size: 1.8rem;
+            }
+            
+            .newton-rings {
+                right: -300px;
+                opacity: 0.06;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .hero {
+                text-align: center;
+                padding-top: 100px;
+            }
+            
+            .hero-content {
+                max-width: 100%;
+            }
+            
+            .main-title {
+                font-size: 2.2rem;
+                white-space: normal;
+            }
+            
+            .subtitle {
+                font-size: 1.6rem;
+            }
+            
+            .description {
+                font-size: 1.1rem;
+            }
+            
+            .cards-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .card {
+                width: 100%;
+                max-width: 340px;
+            }
+            
+            .newton-rings {
+                opacity: 0.04;
+                width: 600px;
+                height: 600px;
+                right: 50%;
+                transform: translate(50%, -50%);
+            }
+        }
+        
+        /* 增强光效元素 */
+        .light-effect {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(60px);
+            opacity: 0.3;
+            z-index: -1;
+        }
+        
+        .light-effect:nth-child(1) {
+            width: 400px;
+            height: 400px;
+            background-color: rgba(41, 121, 255, 0.25);
+            top: 20%;
+            left: 10%;
+            animation: float-light 20s ease-in-out infinite alternate;
+        }
+        
+        .light-effect:nth-child(2) {
+            width: 350px;
+            height: 350px;
+            background-color: rgba(205, 61, 115, 0.20);
+            bottom: 15%;
+            right: 5%;
+            animation: float-light 25s ease-in-out 2s infinite alternate-reverse;
+        }
+        
+        @keyframes float-light {
+            0% {
+                transform: translate(0, 0);
+            }
+            50% {
+                transform: translate(30px, -20px);
+            }
+            100% {
+                transform: translate(-20px, 30px);
+            }
+        }
+        
+        /* 添加实验元素背景 */
+        .science-element {
+            position: absolute;
+            opacity: 0.12;
+            z-index: 0;
+            filter: drop-shadow(0 0 8px rgba(73, 125, 255, 0.2));
+        }
+        
+        .science-element:nth-child(1) {
+            width: 140px;
+            height: 140px;
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232979ff' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'%3E%3C/circle%3E%3Ccircle cx='12' cy='12' r='6'%3E%3C/circle%3E%3Ccircle cx='12' cy='12' r='2'%3E%3C/circle%3E%3C/svg%3E") no-repeat center;
+            background-size: contain;
+            top: 25%;
+            left: 8%;
+            animation: slow-spin 30s linear infinite;
+        }
+        
+        .science-element:nth-child(2) {
+            width: 120px;
+            height: 120px;
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232979ff' stroke-width='1'%3E%3Cpath d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'%3E%3C/path%3E%3C/svg%3E") no-repeat center;
+            background-size: contain;
+            bottom: 15%;
+            right: 12%;
+            animation: slow-spin 35s linear infinite reverse;
+        }
+        
+        .science-element:nth-child(3) {
+            width: 150px;
+            height: 150px;
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232979ff' stroke-width='1'%3E%3Cpath d='M20 16.2A8 8 0 0 1 4 16.2'%3E%3C/path%3E%3Cpath d='M4 7.8A8 8 0 0 1 20 7.8'%3E%3C/path%3E%3Ccircle cx='12' cy='12' r='2'%3E%3C/circle%3E%3C/svg%3E") no-repeat center;
+            background-size: contain;
+            top: 60%;
+            left: 18%;
+            animation: slow-spin 25s linear infinite;
+        }
+        
+        @keyframes slow-spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+        
+        /* 添加动态线条 */
+        .moving-line {
+            position: absolute;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(41, 121, 255, 0.3), transparent);
+            animation: moving-line-anim 8s linear infinite;
+            z-index: 0;
+        }
+        
+        .moving-line:nth-child(1) {
+            width: 40%;
+            top: 25%;
+            left: 30%;
+            animation-duration: 15s;
+        }
+        
+        .moving-line:nth-child(2) {
+            width: 60%;
+            top: 45%;
+            left: 20%;
+            animation-duration: 20s;
+            animation-delay: 2s;
+        }
+        
+        .moving-line:nth-child(3) {
+            width: 50%;
+            top: 75%;
+            left: 25%;
+            animation-duration: 18s;
+            animation-delay: 5s;
+        }
+        
+        @keyframes moving-line-anim {
+            0% {
+                transform: translateX(-100%) scaleX(0.5);
+                opacity: 0;
+            }
+            20% {
+                transform: translateX(-50%) scaleX(1);
+                opacity: 0.5;
+            }
+            80% {
+                transform: translateX(50%) scaleX(1);
+                opacity: 0.5;
+            }
+            100% {
+                transform: translateX(100%) scaleX(0.5);
+                opacity: 0;
+            }
+        }
+        
+        /* 背景纹理 */
+        .texture-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%232979ff' fill-opacity='0.05' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E");
+            opacity: 0.6;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="confettiCanvas"></canvas>
+   
+<script src="https://lf-cdn.coze.cn/obj/unpkg/flow-platform/chat-app-sdk/1.2.0-beta.10/libs/cn/index.js"></script>
+<script>
+  new CozeWebSDK.WebChatClient({
+    config: {
+      bot_id: '7496026874678968331',
+    },
+    componentProps: {
+      title: 'Coze',
+    },
+    auth: {
+      type: 'token',
+      token: 'pat_OyO7GYO7AXBMxsibrTFULxFriAtARJQrf5lAgDJ4ibnUKe1mfqwFIU2PebxMFrHx',
+      onRefreshToken: function () {
+        return 'pat_OyO7GYO7AXBMxsibrTFULxFriAtARJQrf5lAgDJ4ibnUKe1mfqwFIU2PebxMFrHx'
+      }
+    }
+  });
+</script>
+    <div class="top-nav">
+        <a href="#" class="logo">
+            大学物理实验共享平台
+        </a>
+        <div class="top-right">
+            <a href="contact.html" class="api-link">
+                联系我们
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M7 17L17 7M17 7H7M17 7V17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </a>
+                            </div>
+                        </div>
+                        
+    <section class="hero">
+        <div class="texture-overlay"></div>
+        <div class="grid-lines"></div>
+        <div class="bg-decoration">
+            <div class="light-effect"></div>
+            <div class="light-effect"></div>
+            
+            <div class="moving-line"></div>
+            <div class="moving-line"></div>
+            <div class="moving-line"></div>
+            
+            <div class="science-element"></div>
+            <div class="science-element"></div>
+            <div class="science-element"></div>
+            
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            
+            <div class="physics-symbol">λ</div>
+            <div class="physics-symbol">Δ</div>
+            <div class="physics-symbol">φ</div>
+            <div class="physics-symbol">R</div>
+            
+            <div class="newton-ring-small"></div>
+            <div class="newton-ring-small"></div>
+            <div class="newton-ring-small"></div>
+            <div class="newton-ring-small"></div>
+                        </div>
+                        
+        <div class="newton-ring-bg">
+            <div class="newton-rings">
+                <div class="ring"></div>
+                <div class="ring"></div>
+                <div class="ring"></div>
+                <div class="ring"></div>
+                <div class="ring"></div>
+                            </div>
+            <div class="wave"></div>
+            <div class="wave"></div>
+                        </div>
+                        
+        <div class="hero-content">
+            <h1 class="main-title">牛顿环虚拟仿真实验学习平台</h1>
+            <h2 class="subtitle">探索未至之境</h2>
+            <p class="description">AI智能体增强的牛顿环曲率测量虚拟仿真实验平台</p>
+            <p class="description">运用尖端AI技术与3D可视化，体验真实实验环境的沉浸式物理实验。通过虚拟仿真，掌握牛顿环干涉原理，精确测量曲率半径。</p>
+                        </div>
+                        
+                        
+                        
+        <div class="cards-container">
+            <a href="theory.html" class="card">
+                <div class="card-content">
+                    <div class="card-image">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 17C12.5523 17 13 16.5523 13 16C13 15.4477 12.5523 15 12 15C11.4477 15 11 15.4477 11 16C11 16.5523 11.4477 17 12 17Z" fill="#2979FF"/>
+                            <path d="M13 7.00003C13 6.44774 12.5523 6.00003 12 6.00003C11.4477 6.00003 11 6.44774 11 7.00003V13C11 13.5523 11.4477 14 12 14C12.5523 14 13 13.5523 13 13V7.00003Z" fill="#2979FF"/>
+                            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="#2979FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M17.5 9.5L16 11" stroke="#2979FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M14 4.5L12 6" stroke="#2979FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M7 10L9 12" stroke="#2979FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                            </div>
+                    <div class="card-text">
+                        <h3 class="card-title">立即体验</h3>
+                        <p class="card-description">体验全新牛顿环曲率测量虚拟仿真实验，感受沉浸式物理学习环境</p>
+                                    </div>
+             </div>
+            </a>
+                                            </div>
+    </section>
+
+
+    <body>
+  
+
+</body>
+<script>
+    // 彩带喷射效果
+    const canvas = document.getElementById('confettiCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 设置canvas尺寸
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    
+    // 彩带类
+    class Ribbon {
+        constructor(x, y, direction) {
+            this.x = x;
+            this.y = y;
+            this.width = Math.random() * 60 + 20;
+            this.height = Math.random() * 8 + 4;
+            this.velocityX = direction * (Math.random() * 8 + 4);
+            this.velocityY = Math.random() * 4 - 2;
+            this.angle = Math.random() * Math.PI * 2;
+            this.angularVelocity = (Math.random() - 0.5) * 0.2;
+            this.gravity = 0.1;
+            this.opacity = 1;
+            this.fadeRate = 0.003; 
+            this.touchedBottom = false; // 是否已触底
+            
+            // 彩带颜色
+            const colors = [
+                '#FF6B6B', '#4ECDC4', '#FFE66D', '#95E1D3', 
+                '#C7CEEA', '#FF8CC8', '#B4F8C8', '#FBE7C6',
+                '#A8E6CF', '#FFD3B6', '#FFAAA5', '#FF8B94'
+            ];
+            this.color = colors[Math.floor(Math.random() * colors.length)];
+            
+            // 波浪属性
+            this.waveAmplitude = Math.random() * 20 + 10;
+            this.waveFrequency = Math.random() * 0.05 + 0.02;
+            this.wavePhase = Math.random() * Math.PI * 2;
+        }
+        
+        update() {
+            // 更新位置和旋转
+            this.velocityY += this.gravity;
+            this.x += this.velocityX;
+            this.y += this.velocityY;
+            this.angle += this.angularVelocity;
+            
+            // 添加阻力
+            this.velocityX *= 0.98;
+            this.velocityY *= 0.98;
+            
+            // 底部接触处理
+            if (this.y + this.height > canvas.height - 10 && !this.touchedBottom) {
+                this.touchedBottom = true;
+                
+                // 接触底部后，改变运动方向
+                // 减小垂直速度，增加水平速度，模拟滑行效果
+                this.velocityY *= 0.1;
+                
+                // 确保彩带沿着原来的水平方向继续滑行
+                if (this.velocityX > 0) {
+                    this.velocityX = Math.max(this.velocityX, 3); // 确保有足够的水平速度向右滑行
+                } else {
+                    this.velocityX = Math.min(this.velocityX, -3); // 确保有足够的水平速度向左滑行
+                }
+                
+                // 减小旋转速度
+                this.angularVelocity *= 0.5;
+            }
+            
+            // 触底后逐渐淡出
+            if (this.touchedBottom) {
+                this.opacity -= this.fadeRate * 2;
+            } else {
+                this.opacity -= this.fadeRate * 0.5;
+            }
+            
+            // 更新波浪相位
+            this.wavePhase += this.waveFrequency;
+        }
+        
+        draw() {
+            ctx.save();
+            ctx.globalAlpha = this.opacity;
+            ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+            ctx.rotate(this.angle);
+            
+            // 绘制带有渐变的彩带
+            const gradient = ctx.createLinearGradient(-this.width / 2, 0, this.width / 2, 0);
+            gradient.addColorStop(0, this.color);
+            gradient.addColorStop(0.5, this.adjustBrightness(this.color, 1.3));
+            gradient.addColorStop(1, this.color);
+            
+            ctx.fillStyle = gradient;
+            
+            // 绘制波浪彩带
+            ctx.beginPath();
+            const segments = 10;
+            for (let i = 0; i <= segments; i++) {
+                const x = (i / segments - 0.5) * this.width;
+                const y = Math.sin(i / segments * Math.PI * 2 + this.wavePhase) * this.waveAmplitude;
+                if (i === 0) {
+                    ctx.moveTo(x, y - this.height / 2);
+                } else {
+                    ctx.lineTo(x, y - this.height / 2);
+                }
+            }
+            for (let i = segments; i >= 0; i--) {
+                const x = (i / segments - 0.5) * this.width;
+                const y = Math.sin(i / segments * Math.PI * 2 + this.wavePhase) * this.waveAmplitude;
+                ctx.lineTo(x, y + this.height / 2);
+            }
+            ctx.closePath();
+            ctx.fill();
+            
+            // 添加光泽效果
+            ctx.globalAlpha = this.opacity * 0.4;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.fillRect(-this.width / 2, -this.height / 2, this.width * 0.3, this.height);
+            
+            ctx.restore();
+        }
+        
+        adjustBrightness(color, factor) {
+            const num = parseInt(color.replace('#', ''), 16);
+            const r = Math.min(255, Math.floor((num >> 16) * factor));
+            const g = Math.min(255, Math.floor(((num >> 8) & 0x00FF) * factor));
+            const b = Math.min(255, Math.floor((num & 0x0000FF) * factor));
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+        
+        isAlive() {
+            // 彩带完全透明或者滑出屏幕边界时移除
+            return this.opacity > 0 && 
+                   this.x > -this.width * 2 && 
+                   this.x < canvas.width + this.width * 2;
+        }
+    }
+
+    const ribbons = [];
+    
+    // 创建彩带
+    function createRibbons(side) {
+        const count = 20; // 彩带数量
+        
+        if (side === 'left' || side === 'both') {
+            for (let i = 0; i < count; i++) {
+                setTimeout(() => {
+                    const y = Math.random() * canvas.height;
+                    ribbons.push(new Ribbon(0, y, 1));
+                }, i * 20);
+            }
+        }
+        
+        if (side === 'right' || side === 'both') {
+            for (let i = 0; i < count; i++) {
+                setTimeout(() => {
+                    const y = Math.random() * canvas.height;
+                    ribbons.push(new Ribbon(canvas.width, y, -1));
+                }, i * 20);
+            }
+        }
+    }
+    
+    // 创建初始彩带效果（更长更丰富）
+    function createInitialRibbons() {
+        const count = 30; // 设置为30个彩带
+        const duration = 3000; // 持续时间（毫秒）
+        const interval = 100; // 每组彩带的间隔
+        
+        // 创建多组彩带，形成持续的效果
+        for (let j = 0; j < duration/interval; j++) {
+            setTimeout(() => {
+                // 左侧彩带
+                for (let i = 0; i < count/6; i++) {
+                    setTimeout(() => {
+                        const y = Math.random() * (canvas.height * 0.7);
+                        ribbons.push(new Ribbon(0, y, 1));
+                    }, i * 20);
+                }
+                
+                // 右侧彩带
+                for (let i = 0; i < count/6; i++) {
+                    setTimeout(() => {
+                        const y = Math.random() * (canvas.height * 0.7);
+                        ribbons.push(new Ribbon(canvas.width, y, -1));
+                    }, i * 20);
+                }
+            }, j * interval);
+        }
+    }
+    
+    // 动画循环
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        for (let i = ribbons.length - 1; i >= 0; i--) {
+            const ribbon = ribbons[i];
+            ribbon.update();
+            ribbon.draw();
+            
+            if (!ribbon.isAlive()) {
+                ribbons.splice(i, 1);
+            }
+        }
+        
+        requestAnimationFrame(animate);
+    }
+    
+    // 启动动画
+    animate();
+    
+    // 页面加载时自动触发彩带效果（使用新的初始彩带函数）
+    setTimeout(() => {
+        createInitialRibbons();
+    }, 500);
+    
+    // 记录上次触发彩带的时间，防止频繁触发
+    let lastLeftTriggerTime = 0;
+    let lastRightTriggerTime = 0;
+    const triggerCooldown = 500; // 触发冷却时间（毫秒）
+    
+    // 鼠标移动到页面两侧时触发彩带效果
+    document.addEventListener('mousemove', (e) => {
+        const threshold = 50; // 触发区域宽度
+        const currentTime = Date.now();
+        
+        // 鼠标碰到左侧边缘时，只从左侧喷射彩带
+        if (e.clientX < threshold) {
+            // 检查冷却时间
+            if (currentTime - lastLeftTriggerTime > triggerCooldown) {
+                createRibbons('left');
+                lastLeftTriggerTime = currentTime;
+            }
+        } 
+        // 鼠标碰到右侧边缘时，只从右侧喷射彩带
+        else if (e.clientX > window.innerWidth - threshold) {
+            // 检查冷却时间
+            if (currentTime - lastRightTriggerTime > triggerCooldown) {
+                createRibbons('right');
+                lastRightTriggerTime = currentTime;
+            }
+        }
+    });
+    
+    // 添加页面刷新时的彩带喷射
+    window.addEventListener('pageshow', (event) => {
+        // 当页面从缓存加载时也触发彩带效果
+        if (event.persisted) {
+            setTimeout(() => {
+                createInitialRibbons();
+            }, 500);
+        }
+    });
+</script>
+</html>

@@ -1,0 +1,1568 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>牛顿环曲率测量虚拟仿真实验 - 数据分析</title>
+    
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        window.addEventListener('error', function(event) {
+            if (event.filename && event.filename.includes('tfjs') && event.message && event.message.includes('源映射')) {
+                event.preventDefault();
+                return true;
+            }
+        }, true);
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0/dist/tf.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="newtonRingSimulator.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['\\(', '\\)']],
+                displayMath: [['\\[', '\\]']],
+                processEscapes: true
+            },
+            svg: {
+                fontCache: 'global'
+            },
+            options: {
+                renderActions: {
+                    addMenu: [0, '', ''],
+                    checkLoading: [0, '', '']
+                }
+            }
+        };
+    </script>
+    
+    <style>
+        /* 按钮状态样式 */
+        .primary-btn, .secondary-btn {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .primary-btn:disabled, .secondary-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        
+        .button-success {
+            animation: button-success 1s ease;
+        }
+        
+        @keyframes button-success {
+            0% { background-color: #4CAF50; }
+            70% { background-color: #4CAF50; }
+            100% { background-color: #2196F3; }
+        }
+        
+        /* 主按钮悬停效果 */
+        .primary-btn:hover:not(:disabled) {
+            background-color: #1976D2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        /* 次要按钮悬停效果 */
+        .secondary-btn:hover:not(:disabled) {
+            background-color: #e0e0e0;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        /* 按钮点击效果 */
+        .primary-btn:active:not(:disabled), .secondary-btn:active:not(:disabled) {
+            transform: translateY(0);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        /* 加载状态旋转动画 */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* 添加反馈波纹效果 */
+        .primary-btn::after, .secondary-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 5px;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.5);
+            opacity: 0;
+            border-radius: 100%;
+            transform: scale(1, 1) translate(-50%, -50%);
+            transform-origin: 50% 50%;
+        }
+        
+        .primary-btn:focus:not(:active)::after, 
+        .secondary-btn:focus:not(:active)::after {
+            animation: ripple 1s ease-out;
+        }
+        
+        @keyframes ripple {
+            0% {
+                transform: scale(0, 0);
+                opacity: 0.5;
+            }
+            20% {
+                transform: scale(25, 25);
+                opacity: 0.3;
+            }
+            100% {
+                opacity: 0;
+                transform: scale(40, 40);
+            }
+        }
+        
+        .prediction-actions {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        #new-predict-btn {
+            padding: 10px 20px;
+            font-size: 1.1em;
+        }
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .combined-data-view {
+            width: 95%;
+            margin: 0 auto 20px auto;
+        }
+        .combined-chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 20px;
+        }
+        .chart-controls {
+            display: flex;
+            gap: 8px;
+        }
+        .results-panel {
+            display: flex;
+            justify-content: space-around;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            border: 1px solid #eee;
+        }
+        .result-column {
+            flex: 1;
+            min-width: 200px;
+            padding: 0 15px;
+            text-align: left;
+        }
+        .result-column h4 {
+            margin-top: 0;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+            color: #333;
+            font-size: 1.1em;
+        }
+        .result-column p {
+            margin: 8px 0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.95em;
+        }
+        .result-column p span {
+            font-weight: bold;
+            color: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="index.html" class="back-link" style="position: absolute; left: 20px; top: 20px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            返回首页
+        </a>
+        <h1>牛顿环曲率测量虚拟仿真实验</h1>
+    </header>
+    
+    <main>
+        <div class="tabs">
+            <a href="theory.html" class="tab-btn" style="text-decoration: none;">实验原理</a>
+            <a href="3d-demo.html" class="tab-btn" style="text-decoration: none;">3D实验演示</a>
+            <a href="simulation.html" class="tab-btn" style="text-decoration: none;">仿真实验</a>
+            <a href="ai-prediction.html" class="tab-btn active" style="text-decoration: none;">数据分析</a>
+            <a href="extension.html" class="tab-btn" style="text-decoration: none;">拓展内容</a>
+            <a href="ideological-education.html" class="tab-btn" style="text-decoration: none;">格物致知</a>
+        </div>
+        
+        <div class="tab-content">
+            <!-- 数据分析和讨论 -->
+            <div id="ai-prediction" class="tab-pane active">
+                <div class="theory-panel">
+                    <h3>仿真计算核心与数据分析</h3>
+                    <div class="theory-content">
+                        <p>欢迎来到牛顿环交互式仿真模块。本模块的核心是 <code>newtonRingSimulator.js</code> 计算引擎，它能模拟生成牛顿环干涉数据，并运用线性回归进行拟合，精确计算曲率半径。您可以通过调整曲率半径、波长和噪声水平等参数，实时观察其对测量结果的影响。我们鼓励您探索并修改脚本，以深化对物理模型和数据处理的理解。</p>
+                    </div>
+                </div>
+                
+                <div class="prediction-comparison">
+                    <div class="prediction-actions">
+                        <button id="new-predict-btn" class="primary-btn">运行数据分析</button>
+                    </div>
+                    <div class="combined-data-view">
+                        <div class="chart-header">
+                            <h3>牛顿环曲率半径分析结果</h3>
+                        </div>
+                        <div class="combined-chart-container">
+                            <canvas id="combined-chart"></canvas>
+                        </div>
+                        <div class="results-panel">
+                            <div class="result-column">
+                                <h4>仿真采集数据</h4>
+                                <p>真实半径: <span id="actual-radius">-- mm</span></p>
+                                <p>数据点数: <span id="actual-points">--</span></p>
+                                <p>标准差: <span id="actual-std-dev">--</span></p>
+                            </div>
+                            <div class="result-column">
+                                <h4>模型预测结果</h4>
+                                <p>预测半径: <span id="predicted-radius">-- mm</span></p>
+                                <p>预测时间: <span id="prediction-time">-- ms</span></p>
+                                <p>相对误差: <span id="relative-error">--%</span></p>
+                            </div>
+                            <div class="result-column">
+                                <h4>拟合结果</h4>
+                                <p>拟合斜率: <span id="fit-slope">-- mm²/环</span></p>
+                                <p>拟合优度: <span id="r-squared">--</span></p>
+                                <p>置信区间: <span id="confidence-interval">±--%</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="interactive-analysis">
+                    <h3>交互式数据探索</h3>
+                    <div class="analysis-tabs">
+                        <div class="analysis-tab active" data-tab="basic-analysis">基础分析</div>
+                        <div class="analysis-tab" data-tab="radius-analysis">半径分析</div>
+                        <div class="analysis-tab" data-tab="wavelength-analysis">波长分析</div>
+                        <div class="analysis-tab" data-tab="error-analysis">误差分析</div>
+                    </div>
+                    <div class="analysis-content">
+                        <div id="basic-analysis" class="analysis-pane active">
+                            <p class="analysis-description">探索牛顿环实验数据的基本属性和关系</p>
+                            <div class="simple-controls">
+                                <div class="control-row">
+                                    <button id="plot-data" class="primary-btn">绘制数据图表</button>
+                                </div>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="basic-chart"></canvas>
+                            </div>
+                            <div class="analysis-info">
+                                <h4>基本数据统计</h4>
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <div class="stat-label">数据点数:</div>
+                                        <div class="stat-value" id="data-count">--</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-label">拟合斜率:</div>
+                                        <div class="stat-value" id="basic-fit-slope">-- mm²/环</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-label">计算曲率半径:</div>
+                                        <div class="stat-value" id="calc-radius">-- mm</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-label">测量精度:</div>
+                                        <div class="stat-value" id="measure-precision">--%</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="radius-analysis" class="analysis-pane">
+                            <p class="analysis-description">分析曲率半径对测量结果的影响</p>
+                            <div class="parameter-control">
+                                <label for="radius-slider">测试曲率半径 (mm):</label>
+                                <input type="range" id="radius-slider" min="50" max="300" value="150" step="1">
+                                <span id="radius-value">150 mm</span>
+                                <button id="apply-radius" class="secondary-btn">应用</button>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="radius-chart"></canvas>
+                            </div>
+                            <div class="radius-insights">
+                                <div class="insight-card">
+                                    <h4>半径变化分析</h4>
+                                    <p>曲率半径变大时，环间距变小，但环数增多。这是因为曲率半径增大导致空气薄膜厚度变化率降低，使相邻环之间的厚度差减小。</p>
+                                    <p>当前配置下的环数预估: <span id="ring-count">--</span></p>
+                                    <p>第5环直径预估: <span id="ring-diameter">--</span> mm</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="wavelength-analysis" class="analysis-pane">
+                            <p class="analysis-description">探索不同波长对牛顿环干涉图案的影响</p>
+                            <div class="wavelength-selection">
+                                <div class="selection-row">
+                                    <button class="wavelength-btn" data-wavelength="450" style="background-color: rgba(0, 0, 255, 0.7);">
+                                        <div class="color-indicator" style="background-color: #0000FF;"></div>
+                                        <span>蓝光 (450nm)</span>
+                                    </button>
+                                    <button class="wavelength-btn" data-wavelength="550" style="background-color: rgba(0, 255, 0, 0.5);">
+                                        <div class="color-indicator" style="background-color: #00FF00;"></div>
+                                        <span>绿光 (550nm)</span>
+                                    </button>
+                                    <button class="wavelength-btn active" data-wavelength="589" style="background-color: rgba(255, 255, 0, 0.5);">
+                                        <div class="color-indicator" style="background-color: #FFFF00;"></div>
+                                        <span>黄光 (589nm)</span>
+                                    </button>
+                                    <button class="wavelength-btn" data-wavelength="650" style="background-color: rgba(255, 0, 0, 0.7);">
+                                        <div class="color-indicator" style="background-color: #FF0000;"></div>
+                                        <span>红光 (650nm)</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="wavelength-chart"></canvas>
+                            </div>
+                            <div class="wavelength-comparison">
+                                <table class="comparison-table">
+                                    <thead>
+                                        <tr>
+                                            <th>波长 (nm)</th>
+                                            <th>1环直径 (mm)</th>
+                                            <th>5环直径 (mm)</th>
+                                            <th>相对精度</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>450</td>
+                                            <td id="d1-450">--</td>
+                                            <td id="d5-450">--</td>
+                                            <td id="p-450">--</td>
+                                        </tr>
+                                        <tr>
+                                            <td>550</td>
+                                            <td id="d1-550">--</td>
+                                            <td id="d5-550">--</td>
+                                            <td id="p-550">--</td>
+                                        </tr>
+                                        <tr>
+                                            <td>589</td>
+                                            <td id="d1-589">--</td>
+                                            <td id="d5-589">--</td>
+                                            <td id="p-589">--</td>
+                                        </tr>
+                                        <tr>
+                                            <td>650</td>
+                                            <td id="d1-650">--</td>
+                                            <td id="d5-650">--</td>
+                                            <td id="p-650">--</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="wavelength-note">
+                                <p><i class="note-icon">📝</i> 较短的波长会产生更密集的干涉条纹，理论上可以提高测量精度，但也增加了区分相邻环的难度。</p>
+                            </div>
+                        </div>
+                        
+                        <div id="error-analysis" class="analysis-pane">
+                            <div class="error-analysis-description">
+                                <h3>误差影响模拟</h3>
+                                <p>选择不同类型的误差，调整误差幅度，观察它们对曲率半径测量结果的影响。</p>
+                            </div>
+                            
+                            <div class="error-categories">
+                                <div class="error-category-card systematic">
+                                    <div class="error-category-header">
+                                        <h4>系统误差</h4>
+                                        <div class="error-percentage" id="systematic-error-percentage">65%</div>
+                                    </div>
+                                    <div class="error-category-body">
+                                        <p>系统误差是由实验装置或测量方法的固有缺陷导致的，它们具有一定的规律性，可通过校准或补偿部分消除。</p>
+                                        <div class="error-cards">
+                                            <div class="error-card">
+                                                <h5>透镜接触问题</h5>
+                                                <p>平凸透镜与平面玻璃的接触点可能存在微小气隙，导致起始环位置判断误差。</p>
+                                            </div>
+                                            <div class="error-card">
+                                                <h5>透镜表面问题</h5>
+                                                <p>平凸透镜或平面玻璃表面可能存在微小划痕或不均匀性。</p>
+                                            </div>
+                                            <div class="error-card">
+                                                <h5>光源问题</h5>
+                                                <p>光源的非单色性导致干涉环边缘不够清晰，影响测量精度。</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="error-category-card random">
+                                    <div class="error-category-header">
+                                        <h4>随机误差</h4>
+                                        <div class="error-percentage" id="random-error-percentage">35%</div>
+                                    </div>
+                                    <div class="error-category-body">
+                                        <p>随机误差由多种不确定因素引起，它们的大小和方向是随机的，可通过多次测量和统计方法减小其影响。</p>
+                                        <div class="error-cards">
+                                            <div class="error-card">
+                                                <h5>主观判断</h5>
+                                                <p>不同观察者对干涉环位置的判断存在差异。</p>
+                                            </div>
+                                            <div class="error-card">
+                                                <h5>读数误差</h5>
+                                                <p>测量工具的精度限制及使用者读数过程中引入的误差。</p>
+                                            </div>
+                                            <div class="error-card">
+                                                <h5>环境因素</h5>
+                                                <p>温度、湿度、振动等环境因素对实验过程的干扰。</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="simulation-controls">
+                                <div class="control-group">
+                                    <label for="error-type-select">误差类型:</label>
+                                    <select id="error-type-select">
+                                        <option value="contact">透镜接触问题</option>
+                                        <option value="surface">透镜表面问题</option>
+                                        <option value="light">光源问题</option>
+                                        <option value="reading">读数误差</option>
+                                        <option value="judgment">主观判断</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="control-group">
+                                    <label for="error-magnitude">误差幅度:</label>
+                                    <input type="range" id="error-magnitude" min="1" max="10" value="5" step="0.5">
+                                    <span id="error-magnitude-value">5%</span>
+                                </div>
+                                
+                                <button id="calculate-error-effect" class="primary-button">计算误差影响</button>
+                            </div>
+                            
+                            <div class="simulation-result">
+                                <div class="chart-container">
+                                    <canvas id="error-impact-chart"></canvas>
+                                </div>
+                                
+                                <div class="result-table">
+                                    <h4>不同误差类型的影响</h4>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>误差类型</th>
+                                                <th>对曲率半径的影响</th>
+                                                <th>相对误差</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>透镜接触问题</td>
+                                                <td id="contact-impact">±6.0 mm</td>
+                                                <td id="contact-relative">6.0%</td>
+                                            </tr>
+                                            <tr>
+                                                <td>透镜表面问题</td>
+                                                <td id="surface-impact">±4.5 mm</td>
+                                                <td id="surface-relative">4.5%</td>
+                                            </tr>
+                                            <tr>
+                                                <td>光源问题</td>
+                                                <td id="light-impact">±3.0 mm</td>
+                                                <td id="light-relative">3.0%</td>
+                                            </tr>
+                                            <tr>
+                                                <td>读数误差</td>
+                                                <td id="reading-impact">±2.0 mm</td>
+                                                <td id="reading-relative">2.0%</td>
+                                            </tr>
+                                            <tr>
+                                                <td>主观判断</td>
+                                                <td id="judgment-impact">±1.2 mm</td>
+                                                <td id="judgment-relative">1.2%</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <div class="error-methods-panel">
+                                <h3>误差处理方法</h3>
+                                <div class="method-cards">
+                                    <div class="method-card">
+                                        <div class="method-icon">1</div>
+                                        <div class="method-content">
+                                            <h4>线性回归分析</h4>
+                                            <p>采用最小二乘法拟合D²与m的线性关系，减小随机误差影响。</p>
+                                        </div>
+                                    </div>
+                                    <div class="method-card">
+                                        <div class="method-icon">2</div>
+                                        <div class="method-content">
+                                            <h4>选择外环测量</h4>
+                                            <p>优先选择较外侧的干涉环进行测量，减小中心判断不准确带来的影响。</p>
+                                        </div>
+                                    </div>
+                                    <div class="method-card">
+                                        <div class="method-icon">3</div>
+                                        <div class="method-content">
+                                            <h4>重复测量法</h4>
+                                            <p>对同一干涉环进行多次测量，取平均值减小随机误差。</p>
+                                        </div>
+                                    </div>
+                                    <div class="method-card">
+                                        <div class="method-icon">4</div>
+                                        <div class="method-content">
+                                            <h4>标准差计算</h4>
+                                            <p>计算多次测量结果的标准差，评估测量精度。</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        <p>© 2025 AI智能体增强的牛顿环曲率测量虚拟仿真实验平台</p>
+    </footer>
+    
+    <!-- 实验报告预览模态框 -->
+    <div id="report-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>实验报告预览</h2>
+                <span class="report-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="report-content" class="report-content"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="modal-print-btn" class="report-btn print-btn" onclick="printReport()">打印报告</button>
+                <button id="modal-download-btn" class="report-btn download-btn" onclick="downloadReport()">下载报告</button>
+                <button id="modal-close-btn" class="report-btn close-btn" onclick="document.getElementById('report-modal').style.display='none'">关闭预览</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 上划按钮 -->
+    <div class="scroll-to-top" id="scrollToTop">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 19V5M12 5L5 12M12 5L19 12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="simulation.js"></script>
+    <script src="3d-demo.js"></script>
+    <script src="ai-model.js"></script>
+    <script>
+        // 初始化必要的全局变量
+        window.elements = {
+            // 控制元素
+            testRadius: { value: "100" },
+            testWavelength: { value: "589" },
+            noiseLevel: { value: "2" },
+            sampleCount: { value: "15" },
+            confidenceLevel: { value: "0.95" },
+            analysisMethod: { value: "least-squares" },
+            
+            // 按钮元素
+            predictBtn: document.getElementById('new-predict-btn'),
+            
+            // 状态和结果显示元素
+            modelStatus: { textContent: "" },
+            confidenceInterval: document.getElementById('confidence-interval'),
+            predictedRadius: document.getElementById('predicted-radius'),
+            predictionTime: document.getElementById('prediction-time'),
+            fitSlope: document.getElementById('fit-slope'),
+            actualRadius: document.getElementById('actual-radius'),
+            relativeError: document.getElementById('relative-error')
+        };
+        
+        // 初始化图表对象
+        window.charts = {
+            predictionChart: null,
+            actualChart: null
+        };
+        
+        // 线性回归函数
+        function linearRegression(data) {
+            const n = data.length;
+            if (n < 2) return { slope: 0, intercept: 0, r2: 0 };
+
+            let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+            for (const point of data) {
+                sumX += point.x;
+                sumY += point.y;
+                sumXY += point.x * point.y;
+                sumX2 += point.x * point.x;
+            }
+            const x_mean = sumX / n;
+            const y_mean = sumY / n;
+
+            let ss_tot = 0, ss_res = 0;
+            const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+            const intercept = y_mean - slope * x_mean;
+
+            for (const point of data) {
+                ss_tot += Math.pow(point.y - y_mean, 2);
+                ss_res += Math.pow(point.y - (slope * point.x + intercept), 2);
+            }
+            
+            const r2 = ss_tot === 0 ? 1 : 1 - (ss_res / ss_tot);
+            return { slope, intercept, r2 };
+        }
+        
+        // 计算标准误差
+        function calculateStandardError(data, regression) {
+            if (data.length <= 2) return 0;
+            
+            const n = data.length;
+            let sum_squared_residuals = 0;
+            let sum_x_squared = 0;
+            let mean_x = 0;
+            
+            // 计算x的平均值
+            for (const point of data) {
+                mean_x += point.x;
+            }
+            mean_x /= n;
+            
+            // 计算残差平方和和x平方和
+            for (const point of data) {
+                const predicted_y = regression.slope * point.x + regression.intercept;
+                sum_squared_residuals += Math.pow(point.y - predicted_y, 2);
+                sum_x_squared += Math.pow(point.x - mean_x, 2);
+            }
+            
+            // 计算标准误差
+            const variance = sum_squared_residuals / (n - 2);
+            const standard_error = Math.sqrt(variance / sum_x_squared);
+            
+            return standard_error;
+        }
+        
+        // 获取置信区间t值
+        function getConfidenceT(confidence, df) {
+            // 简化的t分布临界值查找
+            const t_table = {
+                "0.9": { // 90%置信水平
+                    5: 2.015, 10: 1.812, 15: 1.753, 20: 1.725
+                },
+                "0.95": { // 95%置信水平
+                    5: 2.571, 10: 2.228, 15: 2.131, 20: 2.086
+                },
+                "0.99": { // 99%置信水平
+                    5: 4.032, 10: 3.169, 15: 2.947, 20: 2.845
+                }
+            };
+            
+            // 查找最接近的自由度
+            let closest_df = Object.keys(t_table[confidence]).reduce((prev, curr) => {
+                return (Math.abs(curr - df) < Math.abs(prev - df) ? curr : prev);
+            });
+            
+            return t_table[confidence][closest_df];
+        }
+        
+        // 开始预测计算函数
+        function startPrediction() {
+            try {
+                console.log("开始数据分析计算...");
+                
+                const startTime = performance.now();
+                
+                // 获取参数
+                const R_actual = parseFloat(elements.testRadius.value); // mm
+                const lambda = parseFloat(elements.testWavelength.value) * 1e-6; // mm
+                const noisePercent = parseFloat(elements.noiseLevel.value);
+                const numSamples = parseInt(elements.sampleCount.value);
+                
+                console.log("参数:", {R_actual, lambda, noisePercent, numSamples});
+                
+                // 检查参数有效性
+                if (isNaN(R_actual) || isNaN(lambda) || isNaN(noisePercent) || isNaN(numSamples)) {
+                    throw new Error("无效的输入参数");
+                }
+                
+                // 生成理想数据
+                let actualData = [];
+                for (let m = 1; m <= numSamples; m++) {
+                    const D_m_sq = 4 * m * lambda * R_actual;
+                    actualData.push({ x: m, y: D_m_sq });
+                }
+                console.log("理想数据:", actualData);
+                
+                // 添加噪声生成测量数据
+                let measuredData = actualData.map(p => {
+                    const noise = (Math.random() - 0.5) * 2 * p.y * (noisePercent / 100);
+                    return { x: p.x, y: p.y + noise };
+                });
+                console.log("测量数据:", measuredData);
+                
+                // 线性回归
+                const regression = linearRegression(measuredData);
+                console.log("回归结果:", regression);
+                
+                // 计算预测半径
+                const R_predicted = regression.slope / (4 * lambda);
+                console.log("预测半径:", R_predicted);
+                
+                const endTime = performance.now();
+                const duration = (endTime - startTime).toFixed(1);
+                
+                // 计算置信区间
+                const confidenceValue = parseFloat(elements.confidenceLevel.value);
+                const t_value = getConfidenceT(confidenceValue, numSamples - 2);
+                const standard_error = calculateStandardError(measuredData, regression);
+                const confidence_interval = (t_value * standard_error / (4 * lambda)).toFixed(2);
+                
+                // 更新UI
+                updateUI(R_actual, R_predicted, duration, regression, actualData, measuredData);
+                
+                if (elements.confidenceInterval) {
+                    elements.confidenceInterval.textContent = `±${confidence_interval} mm`;
+                }
+                
+                console.log("计算完成");
+                
+            } catch (error) {
+                console.error("计算失败:", error);
+                alert(`计算出错：\n${error.message}\n请检查参数或刷新页面重试。`);
+            }
+        }
+        
+        // 为ai-prediction.html页面重新定义initializeCharts函数
+        window.initializeCharts = function() {
+            const combinedChartCanvas = document.getElementById('combined-chart');
+            if (!combinedChartCanvas) return;
+            
+            // 清除已有图表
+            const existingChart = Chart.getChart(combinedChartCanvas);
+            if (existingChart) {
+                existingChart.destroy();
+            }
+            
+            // 创建新的组合图表
+            window.combinedChart = new Chart(combinedChartCanvas.getContext('2d'), {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: '仿真采集数据',
+                            data: [],
+                            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            pointRadius: 5
+                        },
+                        {
+                            label: '仿真数据拟合线',
+                            data: [],
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            showLine: true,
+                            fill: false
+                        },
+                        {
+                            label: '模型预测',
+                            data: [],
+                            backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            pointRadius: 5
+                        },
+                        {
+                            label: '模型预测拟合线',
+                            data: [],
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            showLine: true,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                color: '#333'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '环序 (m)',
+                                color: '#333'
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: '环径平方 (D²ₘ, mm²)',
+                                color: '#333'
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // 将组合图表赋值给charts对象
+            charts.predictionChart = window.combinedChart;
+            charts.actualChart = window.combinedChart;
+        };
+        
+        // 更新UI函数，添加模型预测数据
+        window.updateUI = function(R_actual, R_predicted, duration, regression, actualData, measuredData) {
+            try {
+                // 更新结果显示
+                if (elements.predictedRadius) elements.predictedRadius.textContent = `${R_predicted.toFixed(2)} mm`;
+                if (elements.predictionTime) elements.predictionTime.textContent = `${duration} ms`;
+                if (elements.fitSlope) elements.fitSlope.textContent = `${regression.slope.toExponential(4)} mm²/环`;
+                if (elements.actualRadius) elements.actualRadius.textContent = `${R_actual.toFixed(2)} mm`;
+                if(document.getElementById('actual-points')) document.getElementById('actual-points').textContent = measuredData.length;
+                if(document.getElementById('r-squared')) document.getElementById('r-squared').textContent = regression.r2.toFixed(4);
+
+                // 计算相对误差
+                const relativeError = ((Math.abs(R_predicted - R_actual) / R_actual) * 100).toFixed(2);
+                if (elements.relativeError) elements.relativeError.textContent = `${relativeError}%`;
+                
+                // 更新图表
+                if (window.combinedChart) {
+                    const fitLineData = [];
+                    const xMin = 0;
+                    const xMax = Math.max(...measuredData.map(p => p.x)) + 1;
+                    for (let x = xMin; x <= xMax; x += 0.5) {
+                        fitLineData.push({ x: x, y: regression.slope * x + regression.intercept });
+                    }
+                    
+                    // 创建模型预测数据（与测量数据相同，但可能有不同的噪声）
+                    const modelPredictData = actualData.map(p => {
+                        const noise = (Math.random() - 0.5) * 2 * p.y * (1 / 100); // 使用1%的噪声
+                        return { x: p.x, y: p.y + noise };
+                    });
+                    
+                    // 为模型预测数据创建拟合线
+                    const modelRegression = linearRegression(modelPredictData);
+                    const modelFitLineData = [];
+                    for (let x = xMin; x <= xMax; x += 0.5) {
+                        modelFitLineData.push({ x: x, y: modelRegression.slope * x + modelRegression.intercept });
+                    }
+                    
+                    window.combinedChart.data.datasets[0].data = measuredData;
+                    window.combinedChart.data.datasets[1].data = fitLineData;
+                    window.combinedChart.data.datasets[2].data = modelPredictData;
+                    window.combinedChart.data.datasets[3].data = modelFitLineData;
+                    
+                    window.combinedChart.update();
+                    
+                    // 保存数据以供交互式分析使用
+                    window.analysisData = {
+                        actualData,
+                        measuredData,
+                        modelPredictData,
+                        regression,
+                        modelRegression,
+                        R_actual,
+                        R_predicted
+                    };
+                }
+            } catch (e) {
+                console.error("更新UI时出错:", e);
+                alert("更新界面时发生错误，请检查控制台获取详细信息。");
+            }
+        };
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // 确保 DOM 完全加载
+            
+            // 1. 初始化图表
+            if (typeof initializeCharts === 'function') {
+                initializeCharts();
+            } else {
+                console.error("initializeCharts 函数未定义!");
+                return;
+            }
+
+            // 2. 绑定按钮事件
+            const newPredictBtn = document.getElementById('new-predict-btn');
+            if (newPredictBtn) {
+                window.elements.predictBtn = newPredictBtn; // 更新全局引用
+                
+                if (typeof startPrediction === 'function') {
+                    newPredictBtn.addEventListener('click', startPrediction);
+                } else {
+                    console.error("startPrediction 函数未定义!");
+                }
+            }
+            
+            // 3. 延迟后自动运行一次分析
+            setTimeout(() => {
+                if (typeof startPrediction === 'function') {
+                    startPrediction();
+                }
+            }, 500); // 延迟以确保图表动画渲染完成
+        
+            // 绑定交互式分析标签切换事件
+            const analysisTabs = document.querySelectorAll('.analysis-tab');
+            analysisTabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    analysisTabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    const panes = document.querySelectorAll('.analysis-pane');
+                    panes.forEach(pane => pane.classList.remove('active'));
+                    const currentPane = document.getElementById(tabId);
+                    if (currentPane) {
+                        currentPane.classList.add('active');
+                    }
+                });
+            });
+            
+            // 绑定基础分析按钮事件
+            const plotDataBtn = document.getElementById('plot-data');
+            if (plotDataBtn) {
+                plotDataBtn.addEventListener('click', plotData);
+            }
+            
+            // 绑定半径分析滑块事件
+            const radiusSlider = document.getElementById('radius-slider');
+            const applyRadiusBtn = document.getElementById('apply-radius');
+            if (radiusSlider && applyRadiusBtn) {
+                radiusSlider.addEventListener('input', function() {
+                    document.getElementById('radius-value').textContent = `${this.value} mm`;
+                });
+                
+                applyRadiusBtn.addEventListener('click', function() {
+                    updateRadiusAnalysis(parseFloat(radiusSlider.value));
+                });
+            }
+            
+            // 绑定波长分析按钮事件
+            const wavelengthBtns = document.querySelectorAll('.wavelength-btn');
+            wavelengthBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const wavelength = parseInt(this.getAttribute('data-wavelength'));
+                    wavelengthBtns.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    updateWavelengthAnalysis(wavelength);
+                });
+            });
+            
+            // 绑定误差分析按钮事件
+            const calculateErrorBtn = document.getElementById('calculate-error-effect');
+            if (calculateErrorBtn) {
+                calculateErrorBtn.addEventListener('click', calculateErrorEffect);
+            }
+            
+            // 初始化各个分析模块
+            initBasicAnalysis();
+            initRadiusAnalysis();
+            initWavelengthAnalysis();
+            initErrorAnalysis();
+        });
+        
+        // 确保plotData函数正确定义
+        function plotData() {
+            if (!window.basicChart) {
+                initBasicAnalysis();
+            }
+            
+            // 获取分析数据
+            const data = window.analysisData;
+            if (!data) {
+                console.error("没有可用的分析数据");
+                return;
+            }
+            
+            // 更新基础分析图表
+            window.basicChart.data.datasets = [
+                {
+                    label: '仿真采集数据',
+                    data: data.measuredData,
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    pointRadius: 5
+                },
+                {
+                    label: '模型预测',
+                    data: data.modelPredictData,
+                    backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    pointRadius: 5
+                }
+            ];
+            
+            window.basicChart.update();
+            
+            // 更新统计数据
+            const dataCount = data.measuredData.length;
+            const fitSlope = data.regression.slope;
+            const calcRadius = data.R_predicted;
+            const precision = 100 - ((Math.abs(data.R_predicted - data.R_actual) / data.R_actual) * 100);
+            
+            // 更新统计信息
+            updateBasicStats({
+                dataCount,
+                fitSlope,
+                calcRadius,
+                precision
+            });
+        }
+        
+        function showDataLoadedToast() {
+            const toast = document.createElement('div');
+            toast.textContent = '已成功从仿真实验加载数据！';
+            toast.style.position = 'fixed';
+            toast.style.top = '20px';
+            toast.style.right = '20px';
+            toast.style.backgroundColor = '#4CAF50';
+            toast.style.color = 'white';
+            toast.style.padding = '15px';
+            toast.style.borderRadius = '5px';
+            toast.style.zIndex = '1000';
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.5s ease';
+            
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '1';
+            }, 100);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => {
+                    document.body.removeChild(toast);
+                }, 500);
+            }, 3000);
+        }
+        
+        // 基础分析功能
+        function initBasicAnalysis() {
+            const chartCanvas = document.getElementById('basic-chart');
+            if (!chartCanvas) return;
+            
+            // 清除已有图表
+            const existingChart = Chart.getChart(chartCanvas);
+            if (existingChart) {
+                existingChart.destroy();
+            }
+            
+            // 创建空图表
+            window.basicChart = new Chart(chartCanvas.getContext('2d'), {
+                type: 'scatter',
+                data: {
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '牛顿环数据分析',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        legend: {
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '环序 (m)'
+                            },
+                            type: 'linear'
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: '环径平方 (D²ₘ, mm²)'
+                            },
+                            type: 'linear'
+                        }
+                    }
+                }
+            });
+            
+            // 更新统计信息显示
+            updateBasicStats({
+                dataCount: 0,
+                fitSlope: 0,
+                calcRadius: 0,
+                precision: 0
+            });
+        }
+        
+        function updateBasicStats(stats) {
+            document.getElementById('data-count').textContent = stats.dataCount;
+            document.getElementById('basic-fit-slope').textContent = stats.fitSlope ? `${stats.fitSlope.toExponential(4)} mm²/环` : '-- mm²/环';
+            document.getElementById('calc-radius').textContent = stats.calcRadius ? `${stats.calcRadius.toFixed(2)} mm` : '-- mm';
+            document.getElementById('measure-precision').textContent = stats.precision ? `${stats.precision.toFixed(2)}%` : '--%';
+        }
+        
+        // 半径分析功能
+        function initRadiusAnalysis() {
+            const chartCanvas = document.getElementById('radius-chart');
+            if (!chartCanvas) return;
+            
+            // 清除已有图表
+            const existingChart = Chart.getChart(chartCanvas);
+            if (existingChart) {
+                existingChart.destroy();
+            }
+            
+            // 创建半径分析图表
+            window.radiusChart = new Chart(chartCanvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                    datasets: [
+                        {
+                            label: 'R=100mm',
+                            data: [],
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            borderWidth: 2,
+                            fill: false
+                        },
+                        {
+                            label: 'R=150mm',
+                            data: [],
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            borderWidth: 2,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '不同曲率半径下的牛顿环直径对比',
+                            font: {
+                                size: 16
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '环序'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: '环直径 (mm)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // 默认应用当前滑块的半径值
+            const radiusSlider = document.getElementById('radius-slider');
+            if (radiusSlider) {
+                updateRadiusAnalysis(parseFloat(radiusSlider.value));
+            }
+        }
+        
+        function updateRadiusAnalysis(radius) {
+            if (!window.radiusChart) {
+                initRadiusAnalysis();
+            }
+            
+            // 波长，单位：m
+            const wavelength = 589e-9;
+            
+            // 曲率半径，单位：m
+            const R = radius / 1000;
+            
+            // 计算不同环序下的环直径
+            const data = [];
+            for (let m = 1; m <= 10; m++) {
+                const diameter = 2 * Math.sqrt(m * wavelength * R);
+                data.push(diameter * 1000); // 转为mm
+            }
+            
+            // 更新图表
+            window.radiusChart.data.datasets[0].data = data;
+            window.radiusChart.data.datasets[0].label = `R=${radius}mm`;
+            window.radiusChart.update();
+            
+            // 更新环数预估和直径预估
+            const ringCount = Math.floor(Math.sqrt(15 / (wavelength * R))) || 0;
+            document.getElementById('ring-count').textContent = ringCount;
+            
+            const ring5Diameter = 2 * Math.sqrt(5 * wavelength * R) * 1000; // 第5环直径，单位mm
+            document.getElementById('ring-diameter').textContent = `${ring5Diameter.toFixed(2)} mm`;
+        }
+        
+        // 波长分析功能
+        function initWavelengthAnalysis() {
+            const chartCanvas = document.getElementById('wavelength-chart');
+            if (!chartCanvas) return;
+            
+            // 清除已有图表
+            const existingChart = Chart.getChart(chartCanvas);
+            if (existingChart) {
+                existingChart.destroy();
+            }
+            
+            // 创建波长分析图表
+            window.wavelengthChart = new Chart(chartCanvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '不同波长下的牛顿环直径对比',
+                            font: {
+                                size: 16
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '环序'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: '环直径 (mm)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // 默认显示黄光(589nm)的波长分析
+            updateWavelengthAnalysis(589);
+        }
+        
+        function updateWavelengthAnalysis(wavelength) {
+            if (!window.wavelengthChart) {
+                initWavelengthAnalysis();
+            }
+            
+            // 波长，单位：m
+            const lambda = wavelength * 1e-9;
+            
+            // 曲率半径默认100mm，单位：m
+            const R = 100 / 1000;
+            
+            // 计算不同环序下的环直径
+            const data = [];
+            for (let m = 1; m <= 10; m++) {
+                const diameter = 2 * Math.sqrt(m * lambda * R);
+                data.push(diameter * 1000); // 转为mm
+            }
+            
+            // 根据波长获取颜色
+            let color;
+            switch(wavelength) {
+                case 450:
+                    color = 'rgba(0, 0, 255, 0.7)';
+                    break;
+                case 550:
+                    color = 'rgba(0, 255, 0, 0.7)';
+                    break;
+                case 589:
+                    color = 'rgba(255, 215, 0, 0.7)';
+                    break;
+                case 650:
+                    color = 'rgba(255, 0, 0, 0.7)';
+                    break;
+                default:
+                    color = 'rgba(128, 128, 128, 0.7)';
+            }
+            
+            // 更新图表
+            window.wavelengthChart.data.datasets = [{
+                label: `${wavelength}nm`,
+                data: data,
+                borderColor: color,
+                backgroundColor: color.replace('0.7', '0.2'),
+                borderWidth: 2,
+                fill: false
+            }];
+            window.wavelengthChart.update();
+            
+            // 更新比较表格
+            updateWavelengthComparisonTable(wavelength);
+        }
+        
+        function updateWavelengthComparisonTable(currentWavelength) {
+            // 默认曲率半径100mm
+            const R = 100 / 1000;
+            
+            // 计算所有波长的直径数据
+            const wavelengths = [450, 550, 589, 650];
+            
+            wavelengths.forEach(wavelength => {
+                const lambda = wavelength * 1e-9;
+                
+                // 第1环直径
+                const d1 = 2 * Math.sqrt(1 * lambda * R) * 1000;
+                document.getElementById(`d1-${wavelength}`).textContent = `${d1.toFixed(2)} mm`;
+                
+                // 第5环直径
+                const d5 = 2 * Math.sqrt(5 * lambda * R) * 1000;
+                document.getElementById(`d5-${wavelength}`).textContent = `${d5.toFixed(2)} mm`;
+                
+                // 相对精度 - 波长越短，精度越高
+                const baseline = 589; // 以黄光为基准
+                const precision = (baseline / wavelength) * 100;
+                
+                // 高亮当前选中的波长
+                const precision_td = document.getElementById(`p-${wavelength}`);
+                precision_td.textContent = `${precision.toFixed(1)}%`;
+                
+                if (wavelength === currentWavelength) {
+                    const row = precision_td.parentNode;
+                    row.style.backgroundColor = 'rgba(255, 255, 0, 0.1)';
+                    row.style.fontWeight = 'bold';
+                } else {
+                    const row = precision_td.parentNode;
+                    row.style.backgroundColor = '';
+                    row.style.fontWeight = 'normal';
+                }
+            });
+        }
+        
+        // 误差分析功能
+        function initErrorAnalysis() {
+            const chartCanvas = document.getElementById('error-impact-chart');
+            if (!chartCanvas) return;
+            
+            // 清除已有图表
+            const existingChart = Chart.getChart(chartCanvas);
+            if (existingChart) {
+                existingChart.destroy();
+            }
+            
+            // 创建误差影响图表
+            window.errorChart = new Chart(chartCanvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['无误差', '有误差'],
+                    datasets: [{
+                        label: '曲率半径测量值 (mm)',
+                        data: [100, 100],
+                        backgroundColor: [
+                            'rgba(75, 192, 192, 0.6)',
+                            'rgba(255, 99, 132, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(255, 99, 132, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '误差对测量结果的影响',
+                            font: {
+                                size: 16
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: 90,
+                            max: 110,
+                            title: {
+                                display: true,
+                                text: '曲率半径 (mm)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function calculateErrorEffect() {
+            if (!window.errorChart) {
+                initErrorAnalysis();
+            }
+            
+            // 获取误差类型和幅度
+            const errorType = document.getElementById('error-type-select').value;
+            const errorMagnitude = parseFloat(document.getElementById('error-magnitude').value);
+            
+            // 基准曲率半径
+            const baseRadius = 100;
+            
+            // 根据误差类型计算影响系数
+            let impactFactor;
+            switch(errorType) {
+                case 'contact':
+                    impactFactor = 1.2;
+                    break;
+                case 'surface':
+                    impactFactor = 0.9;
+                    break;
+                case 'light':
+                    impactFactor = 0.6;
+                    break;
+                case 'reading':
+                    impactFactor = 0.4;
+                    break;
+                case 'judgment':
+                    impactFactor = 0.25;
+                    break;
+                default:
+                    impactFactor = 0.5;
+            }
+            
+            // 计算误差影响
+            const errorImpact = baseRadius * (errorMagnitude / 100) * impactFactor;
+            
+            // 随机决定误差方向
+            const direction = Math.random() > 0.5 ? 1 : -1;
+            
+            // 有误差的半径值
+            const errorRadius = baseRadius + direction * errorImpact;
+            
+            // 更新图表
+            window.errorChart.data.datasets[0].data = [baseRadius, errorRadius];
+            window.errorChart.options.plugins.title.text = `误差对曲率半径测量的影响 (${(errorRadius - baseRadius).toFixed(2)} mm)`;
+            
+            // 更新y轴范围，确保两个柱状图都可见
+            const minY = Math.min(baseRadius, errorRadius) * 0.95;
+            const maxY = Math.max(baseRadius, errorRadius) * 1.05;
+            window.errorChart.options.scales.y.min = minY;
+            window.errorChart.options.scales.y.max = maxY;
+            
+            window.errorChart.update();
+            
+            // 更新误差影响表格
+            updateErrorImpactTable(errorType, Math.abs(errorImpact));
+        }
+        
+        function updateErrorImpactTable(selectedType, errorImpact) {
+            // 误差类型与表格ID映射
+            const typeIds = {
+                'contact': { impact: 'contact-impact', relative: 'contact-relative' },
+                'surface': { impact: 'surface-impact', relative: 'surface-relative' },
+                'light': { impact: 'light-impact', relative: 'light-relative' },
+                'reading': { impact: 'reading-impact', relative: 'reading-relative' },
+                'judgment': { impact: 'judgment-impact', relative: 'judgment-relative' }
+            };
+            
+            // 基准半径
+            const baseRadius = 100;
+            
+            // 更新所有误差类型的表格行
+            Object.keys(typeIds).forEach(type => {
+                const impactElem = document.getElementById(typeIds[type].impact);
+                const relativeElem = document.getElementById(typeIds[type].relative);
+                
+                if (impactElem && relativeElem) {
+                    // 高亮当前选中的误差类型
+                    if (type === selectedType) {
+                        // 更新并高亮选中的误差类型
+                        impactElem.textContent = `±${errorImpact.toFixed(1)} mm`;
+                        impactElem.style.fontWeight = 'bold';
+                        impactElem.style.color = '#ff6b6b';
+                        
+                        const relativeError = (errorImpact / baseRadius * 100).toFixed(1);
+                        relativeElem.textContent = `${relativeError}%`;
+                        relativeElem.style.fontWeight = 'bold';
+                        relativeElem.style.color = '#ff6b6b';
+                    } else {
+                        // 恢复其他误差类型的默认样式
+                        impactElem.style.fontWeight = 'normal';
+                        impactElem.style.color = '';
+                        
+                        relativeElem.style.fontWeight = 'normal';
+                        relativeElem.style.color = '';
+                    }
+                }
+            });
+        }
+
+        // 上划按钮功能
+        document.addEventListener('DOMContentLoaded', function() {
+            const scrollToTopBtn = document.getElementById('scrollToTop');
+            if (!scrollToTopBtn) return;
+            
+            // 滚动事件监听
+            window.addEventListener('scroll', function() {
+                if (window.pageYOffset > 300) {
+                    scrollToTopBtn.classList.add('visible');
+                } else {
+                    scrollToTopBtn.classList.remove('visible');
+                }
+            });
+            
+            // 点击事件
+            scrollToTopBtn.addEventListener('click', function() {
+                window.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
+            });
+        });
+    </script>
+</body>
+</html> 
